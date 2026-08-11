@@ -1,6 +1,6 @@
 // Frontend Hybrid API layer (Live API + Mock Mockup fallback)
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export interface User {
   id: string;
