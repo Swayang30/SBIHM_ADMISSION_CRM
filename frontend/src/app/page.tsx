@@ -16,6 +16,47 @@ import { fetchFromAPI, MOCK_LEADS, User } from '../lib/api';
 
 const COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
+interface LeadActivity {
+  id: string;
+  actionType: string;
+  description: string;
+  createdAt: string;
+}
+
+interface LeadFollowUp {
+  id: string;
+  scheduledFor: string;
+  remarks: string;
+  isCompleted: boolean;
+}
+
+interface LeadWhatsAppMessage {
+  id: string;
+  direction: string;
+  messageBody: string;
+  status: string;
+  createdAt: string;
+}
+
+interface Lead {
+  id: string;
+  studentName: string;
+  phone: string;
+  email: string;
+  status: string;
+  temperature: string;
+  leadSource: string;
+  courseName?: string;
+  course?: { name: string };
+  campusName?: string;
+  campus?: { name: string };
+  slaDeadline?: string;
+  slaStatus?: string;
+  activities?: LeadActivity[];
+  followups?: LeadFollowUp[];
+  whatsappMessages?: LeadWhatsAppMessage[];
+}
+
 const LeadStatus = {
   NEW_LEAD: 'NEW_LEAD',
   CONTACTED: 'CONTACTED',
@@ -205,7 +246,7 @@ export default function DashboardApp() {
     } catch (e) {
       // Mock update local UI
       const mockMsg = { id: Math.random().toString(), direction: 'OUTBOUND', messageBody: whatsappMsg, status: 'READ', createdAt: new Date().toISOString() };
-      setSelectedLead(prev => ({
+      setSelectedLead((prev: Lead) => ({
         ...prev,
         whatsappMessages: [mockMsg, ...(prev.whatsappMessages || [])]
       }));
@@ -227,7 +268,7 @@ export default function DashboardApp() {
     } catch (e) {
       // Mock update local UI
       const newAct = { id: Math.random().toString(), actionType: 'REMARK_ADDED', description: `Remark added: ${newRemark}`, createdAt: new Date().toISOString() };
-      setSelectedLead(prev => ({
+      setSelectedLead((prev: Lead) => ({
         ...prev,
         activities: [newAct, ...(prev.activities || [])]
       }));
@@ -253,7 +294,7 @@ export default function DashboardApp() {
     } catch (e) {
       // Mock local UI
       const mockFup = { id: Math.random().toString(), scheduledFor: datetime, remarks: followupRemarks, isCompleted: false };
-      setSelectedLead(prev => ({
+      setSelectedLead((prev: Lead) => ({
         ...prev,
         followups: [mockFup, ...(prev.followups || [])]
       }));
@@ -274,7 +315,7 @@ export default function DashboardApp() {
     } catch (e) {
       // Mock call update UI
       const newAct = { id: Math.random().toString(), actionType: 'COMMUNICATION', description: `Dialed ${selectedLead.phone}... Call duration: 1m 45s.`, createdAt: new Date().toISOString() };
-      setSelectedLead(prev => ({
+      setSelectedLead((prev: Lead) => ({
         ...prev,
         activities: [newAct, ...(prev.activities || [])]
       }));
