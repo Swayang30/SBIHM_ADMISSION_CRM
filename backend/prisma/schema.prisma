@@ -1,0 +1,259 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  COLLEGE_ADMIN
+  ADMISSION_MANAGER
+  COUNSELLOR
+  MARKETING_TEAM
+}
+
+enum LeadTemperature {
+  COLD
+  WARM
+  HOT
+}
+
+enum LeadStatus {
+  NEW_LEAD
+  CONTACTED
+  INTERESTED
+  COUNSELLING_SCHEDULED
+  DOCUMENTS_PENDING
+  DOCUMENTS_RECEIVED
+  APPLICATION_SUBMITTED
+  ADMISSION_CONFIRMED
+  PAYMENT_PENDING
+  PAYMENT_COMPLETED
+  JOINED
+  NOT_INTERESTED
+  LOST
+  DUPLICATE
+  SPAM
+}
+
+enum SLAStatus {
+  WITHIN_SLA
+  WARNING
+  BREACHED
+}
+
+model Campus {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  address   String?
+  code      String   @unique
+  faculties Faculty[]
+  users     User[]
+  leads     Lead[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Faculty {
+  id        String   @id @default(uuid())
+  name      String
+  campusId  String
+  campus    Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  departments Department[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([name, campusId])
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String
+  facultyId String
+  faculty   Faculty  @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  courses   Course[]
+  leads     Lead[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, facultyId])
+}
+
+model Course {
+  id           String   @id @default(uuid())
+  name         String
+  code         String   @unique
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  durationYrs  Int
+  feeAmount    Decimal  @db.Decimal(12, 2)
+  leads        Lead[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  role          Role
+  phone         String?
+  campusId      String?
+  campus        Campus?  @relation(fields: [campusId], references: [id])
+  isActive      Boolean  @default(true)
+  assignedLeads Lead[]   @relation("CounsellorAssignment")
+  activities    LeadActivity[]
+  auditLogs     AuditLog[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Lead {
+  id               String          @id @default(uuid())
+  studentName      String
+  fatherName       String?
+  motherName       String?
+  phone            String
+  altPhone         String?
+  whatsappNumber   String?
+  email            String
+  gender           String?
+  dob              DateTime?
+  state            String?
+  district         String?
+  city             String?
+  pincode          String?
+  qualification    String?
+  percentage       Decimal?        @db.Decimal(5, 2)
+  
+  // Academic assignment
+  campusId         String?
+  campus           Campus?         @relation(fields: [campusId], references: [id])
+  departmentId     String?
+  department       Department?     @relation(fields: [departmentId], references: [id])
+  courseId         String?
+  course           Course?         @relation(fields: [courseId], references: [id])
+  
+  // Pipeline status & Temperature
+  status           LeadStatus      @default(NEW_LEAD)
+  temperature      LeadTemperature @default(COLD)
+  isTempOverride   Boolean         @default(false)
+  
+  // Assignment
+  counsellorId     String?
+  counsellor       User?           @relation("CounsellorAssignment", fields: [counsellorId], references: [id])
+  assignedAt       DateTime?
+  
+  // UTM & Marketing Attribution
+  leadSource       String          // e.g. "Google Ads", "Meta Ads", "Walk-in"
+  campaignId       String?
+  campaignName     String?
+  adGroup          String?
+  keyword          String?
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  utmContent       String?
+  utmTerm          String?
+  landingPageUrl   String?
+  leadCost         Decimal         @default(0.00) @db.Decimal(10, 2)
+  gclid            String?
+  fbclid           String?
+  
+  // SLA
+  slaStatus        SLAStatus       @default(WITHIN_SLA)
+  slaDeadline      DateTime?       // 15 mins from creation by default
+  lastRespondedAt  DateTime?
+
+  activities       LeadActivity[]
+  followups        FollowUp[]
+  documents        Document[]
+  whatsappMessages WhatsAppMessage[]
+  payments         Payment[]
+  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([phone])
+  @@index([email])
+  @@index([status])
+  @@index([temperature])
+  @@index([leadSource])
+}
+
+model LeadActivity {
+  id           String   @id @default(uuid())
+  leadId       String
+  lead         Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  actionType   String   // "STATUS_CHANGE", "ASSIGNMENT", "REMARK_ADDED", "COMMUNICATION"
+  description  String
+  metadata     Json?    // Stores specific changes
+  createdAt    DateTime @default(now())
+}
+
+model FollowUp {
+  id             String    @id @default(uuid())
+  leadId         String
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  scheduledFor   DateTime
+  remarks        String
+  isCompleted    Boolean   @default(false)
+  reminderSent   Boolean   @default(false)
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  leadId       String
+  lead         Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  docType      String   // "Marksheet", "ID Proof", "Address Proof", "Photo"
+  fileUrl      String
+  fileName     String
+  fileSize     Int
+  uploadedBy   String
+  createdAt    DateTime @default(now())
+}
+
+model WhatsAppMessage {
+  id           String   @id @default(uuid())
+  leadId       String
+  lead         Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  direction    String   // "INBOUND" or "OUTBOUND"
+  messageBody  String
+  templateName String?
+  status       String   // "SENT", "DELIVERED", "READ", "FAILED"
+  errorMessage String?
+  messageSid   String?  // Twilio / WhatsApp API reference
+  createdAt    DateTime @default(now())
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  leadId        String
+  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  amount        Decimal  @db.Decimal(12, 2)
+  purpose       String   // "APPLICATION_FEE", "TUITION_FEE"
+  gateway       String   // "RAZORPAY", "PAYU"
+  referenceId   String   @unique
+  status        String   // "SUCCESS", "PENDING", "FAILED"
+  createdAt     DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String   // "LOGIN", "CREATE_LEAD", "UPDATE_LEAD", "DELETE_LEAD", "EXPORT"
+  ipAddress  String?
+  userAgent  String?
+  details    Json?
+  createdAt  DateTime @default(now())
+}
